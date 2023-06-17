@@ -239,11 +239,12 @@ if __name__ == '__main__':
         model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
     else:
         model = Segtran2d(CONFIG)
+        model.n_channels = 1
 
     model = model.to(memory_format=torch.channels_last)
     model.classes = args.classes
     model.n_classes = args.classes
-    model.n_channels = 3
+
 
     # logging.info(f'Network:\n'
     #              f'\t{model.n_channels} input channels\n'
