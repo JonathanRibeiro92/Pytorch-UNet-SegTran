@@ -201,6 +201,8 @@ def get_args():
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
+    parser.add_argument('--channels', '-ch', type=int, default=3,
+                        help='Number of channels image')
 
     return parser.parse_args()
 
@@ -236,10 +238,11 @@ if __name__ == '__main__':
     CONFIG.device = 'cuda'
 
     if args.net == 'unet':
-        model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+        model = UNet(n_channels=args.channels, n_classes=args.classes,
+                     bilinear=args.bilinear)
     else:
         model = Segtran2d(CONFIG)
-        model.n_channels = 1
+        model.n_channels = args.channels
 
     model = model.to(memory_format=torch.channels_last)
     model.classes = args.classes
