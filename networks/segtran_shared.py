@@ -143,7 +143,7 @@ class SegtranConfig:
         self.ablate_multihead = False
 
         self.use_attn_consist_loss = False
-        self.n_channels = 1
+        self.n_channels = 3
 
     # return True if any parameter is successfully set, and False if none is set.
     def try_assign(self, args, *keys):

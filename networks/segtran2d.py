@@ -153,6 +153,7 @@ class Segtran2d(SegtranInitWeights):
         self.in_fpn_convs = [None, None, self.in_fpn23_conv, self.in_fpn34_conv]
 
         self.num_classes = config.num_classes
+        self.n_channels = config.n_channels
         self.num_modalities = config.num_modalities
         if self.num_modalities > 0:
             self.mod_fuse_conv = nn.Conv2d(self.num_modalities, 1, 1)

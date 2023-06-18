@@ -223,8 +223,8 @@ if __name__ == '__main__':
         model = UNet(n_channels=args.channels, n_classes=args.classes,
                      bilinear=args.bilinear)
     else:
+        CONFIG.n_channels = 1
         model = Segtran2d(CONFIG)
-        model.n_channels = args.channels
 
     model = model.to(memory_format=torch.channels_last)
     model.classes = args.classes
