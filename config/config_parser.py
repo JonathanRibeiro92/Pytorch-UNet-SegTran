@@ -87,6 +87,8 @@ def configure_parse(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
+    parser.add_argument('--channels', '-x', type=int, default=3,
+                        help='Number of channels image')
 
     ###### Optimization settings ######
     parser.add_argument('--lrwarmup', dest='lr_warmup_steps', type=int, default=500, help='Number of LR warmup steps')
