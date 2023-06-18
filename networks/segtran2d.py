@@ -98,7 +98,8 @@ class Segtran2d(SegtranInitWeights):
             if self.use_pretrained:
                 self.backbone = EfficientNet.from_pretrained(backbone_type, advprop=advprop,
                                                              ignore_missing_keys=True,
-                                                             stem_stride=stem_stride)
+                                                             stem_stride=stem_stride,
+                                                             in_channels=self.n_channels)
             else:
                 self.backbone = EfficientNet.from_name(backbone_type,
                                                        stem_stride=stem_stride)

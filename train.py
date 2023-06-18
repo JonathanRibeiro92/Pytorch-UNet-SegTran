@@ -193,7 +193,6 @@ def train_model(
 if __name__ == '__main__':
     set_all_lib_seed(SEED)
 
-    # args = get_args()
     parser = argparse.ArgumentParser()
     configure_parse(parser)
     args = parser.parse_args()
