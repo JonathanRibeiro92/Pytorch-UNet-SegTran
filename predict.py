@@ -12,6 +12,8 @@ from utils.data_loading import BasicDataset
 from unet import UNet
 from utils.utils import plot_img_and_mask
 
+from networks.segtran2d import Segtran2d, CONFIG
+
 def predict_img(net,
                 full_img,
                 device,
@@ -83,7 +85,12 @@ if __name__ == '__main__':
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    if args.net == 'unet':
+        net = UNet(n_channels=args.channels, n_classes=args.classes,
+                     bilinear=args.bilinear)
+    else:
+        CONFIG.n_channels = args.channels
+        net = Segtran2d(CONFIG)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')

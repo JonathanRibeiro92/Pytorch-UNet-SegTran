@@ -19,8 +19,8 @@ from utils.data_loading import BasicDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 from utils.reproducibility import set_all_lib_seed, set_seed_worker
 
-dir_img = Path('./data/imgs')
-dir_mask = Path('./data/masks')
+dir_img = Path('./data/train/imgs')
+dir_mask = Path('./data/train/masks')
 dir_checkpoint = Path('./checkpoints/')
 
 
@@ -223,7 +223,7 @@ if __name__ == '__main__':
         model = UNet(n_channels=args.channels, n_classes=args.classes,
                      bilinear=args.bilinear)
     else:
-        CONFIG.n_channels = 1
+        CONFIG.n_channels = args.channels
         model = Segtran2d(CONFIG)
 
     model = model.to(memory_format=torch.channels_last)
