@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
@@ -11,8 +12,13 @@ from torchvision import transforms
 from utils.data_loading import BasicDataset
 from unet import UNet
 from utils.utils import plot_img_and_mask
+from utils.dice_score import dice_loss
 
 from networks.segtran2d import Segtran2d, CONFIG
+
+dir_img = Path('./data/test/imgs')
+dir_mask = Path('./data/test/masks')
+dir_checkpoint = Path('./checkpoints/')
 
 def predict_img(net,
                 full_img,
@@ -82,8 +88,26 @@ if __name__ == '__main__':
     args = get_args()
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-    in_files = args.input
-    out_files = get_output_filenames(args)
+    dataset = BasicDataset(str(dir_img), str(dir_mask), img_scale)
+    test_loader = DataLoader(
+        dataset,
+        shuffle=True,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=True,
+        worker_init_fn=set_seed_worker,
+        generator=dataloader_generator,
+    )
+
+
+    # in_files = args.input
+    # out_files = get_output_filenames(args)
+
+    # Change here to adapt to your data
+    # n_channels=3 for RGB images
+    # n_classes is the number of probabilities you want to get per pixel
+    net = None
+    CONFIG.device = 'cuda'
 
     if args.net == 'unet':
         net = UNet(n_channels=args.channels, n_classes=args.classes,
@@ -103,22 +127,78 @@ if __name__ == '__main__':
 
     logging.info('Model loaded!')
 
-    for i, filename in enumerate(in_files):
-        logging.info(f'Predicting image {filename} ...')
-        img = Image.open(filename)
+    # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
+    optimizer = optim.RMSprop(model.parameters(),
+                              lr=learning_rate, weight_decay=weight_decay,
+                              momentum=momentum, foreach=True)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',
+                                                     patience=5)  # goal: maximize Dice score
+    grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    criterion = nn.CrossEntropyLoss() if net.classes > 1 else \
+        nn.BCEWithLogitsLoss()
+    global_step = 0
+    dice_score = 0
 
-        mask = predict_img(net=net,
-                           full_img=img,
-                           scale_factor=args.scale,
-                           out_threshold=args.mask_threshold,
-                           device=device)
+    for batch in train_loader:
+        images, true_masks = batch['image'], batch['mask']
 
-        if not args.no_save:
-            out_filename = out_files[i]
-            result = mask_to_image(mask, mask_values)
-            result.save(out_filename)
-            logging.info(f'Mask saved to {out_filename}')
+        images = images.to(device=device, dtype=torch.float32,
+                           memory_format=torch.channels_last)
+        true_masks = true_masks.to(device=device, dtype=torch.long)
 
-        if args.viz:
-            logging.info(f'Visualizing results for image {filename}, close to continue...')
-            plot_img_and_mask(img, mask)
+        with torch.autocast(device.type if device.type != 'mps' else 'cpu',
+                            enabled=amp):
+            masks_pred = net(images)
+            if model.n_classes == 1:
+                loss = criterion(masks_pred.squeeze(1), true_masks.float())
+                loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
+                                  true_masks.float(), multiclass=False)
+                masks_pred = (F.sigmoid(masks_pred) > 0.5).float()
+                dice_score += dice_coeff(masks_pred, true_masks,
+                                         reduce_batch_first=False)
+            else:
+                loss = criterion(masks_pred, true_masks)
+                loss += dice_loss(
+                    F.softmax(masks_pred, dim=1).float(),
+                    F.one_hot(true_masks, model.n_classes).permute(0, 3, 1,
+                                                                   2).float(),
+                    multiclass=True
+                )
+                true_masks = F.one_hot(true_masks, net.n_classes).permute(0, 3, 1,
+                                                                        2).float()
+                masks_pred = F.one_hot(masks_pred.argmax(dim=1),
+                                      net.n_classes).permute(0, 3, 1, 2).float()
+                dice_score += multiclass_dice_coeff(masks_pred[:, 1:],
+                                                    true_masks[:, 1:],
+                                                    reduce_batch_first=False)
+        # if not args.no_save:
+        #     for mask in masks_pred:
+        #         result = mask_to_image(mask, mask_values)
+        #         result.save(out_filename)
+        #         logging.info(f'Mask saved to {out_filename}')
+
+    logging.info('Predict Dice score: {}'.format(dice_score))
+
+
+
+
+
+    # for i, filename in enumerate(in_files):
+    #     logging.info(f'Predicting image {filename} ...')
+    #     img = Image.open(filename)
+    #
+    #     mask = predict_img(net=net,
+    #                        full_img=img,
+    #                        scale_factor=args.scale,
+    #                        out_threshold=args.mask_threshold,
+    #                        device=device)
+    #
+    #     if not args.no_save:
+    #         out_filename = out_files[i]
+    #         result = mask_to_image(mask, mask_values)
+    #         result.save(out_filename)
+    #         logging.info(f'Mask saved to {out_filename}')
+    #
+    #     if args.viz:
+    #         logging.info(f'Visualizing results for image {filename}, close to continue...')
+    #         plot_img_and_mask(img, mask)
