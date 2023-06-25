@@ -46,31 +46,19 @@ def predict_img(net,
     return mask[0].long().squeeze().numpy()
 
 
-def get_args():
+def get_parser():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
     parser.add_argument('--model', '-m', default='MODEL.pth', metavar='FILE',
                         help='Specify the file in which the model is stored')
     parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images')
     parser.add_argument('--output', '-o', metavar='OUTPUT', nargs='+', help='Filenames of output images')
-    parser.add_argument('--viz', '-v', action='store_true',
+    parser.add_argument('--viz', action='store_true',
                         help='Visualize the images as they are processed')
     parser.add_argument('--no-save', '-n', action='store_true', help='Do not save the output masks')
     parser.add_argument('--mask-threshold', '-t', type=float, default=0.5,
                         help='Minimum probability value to consider a mask pixel white')
-    parser.add_argument('--scale', '-s', type=float, default=0.5,
-                        help='Scale factor for the input images')
-    parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
-    parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
-    parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B',
-                        type=int, default=1, help='Batch size')
-    parser.add_argument('--net', type=str, default='segtran',
-                        help='Network architecture')
-    parser.add_argument('--channels', '-x', type=int, default=1,
-                        help='Number of channels image')
-    parser.add_argument("--gbias", dest='use_global_bias', action='store_true',
-                        help='Use the global bias instead of transformer layers.')
-    
-    return parser.parse_args()
+
+    return parser
 
 
 def get_output_filenames(args):
@@ -98,7 +86,21 @@ def mask_to_image(mask: np.ndarray, mask_values):
 
 
 if __name__ == '__main__':
-    args = get_args()
+    parser = get_parser()
+    configure_parse(parser)
+    args = parser.parse_args()
+
+    args_dict = {
+        'trans_output_type': 'private',
+        'mid_type': 'shared',
+        'in_fpn_scheme': 'AN',
+        'out_fpn_scheme': 'AN',
+    }
+    for arg, v in args_dict.items():
+        args.__dict__[arg] = v
+
+    CONFIG.update_config(args)
+
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
     dataloader_generator = torch.Generator()
@@ -120,24 +122,8 @@ if __name__ == '__main__':
     # in_files = args.input
     # out_files = get_output_filenames(args)
 
-    parser = argparse.ArgumentParser()
-    configure_parse(parser)
-    args2 = parser.parse_args()
 
-    args_dict = {
-        'trans_output_type': 'private',
-        'mid_type': 'shared',
-        'in_fpn_scheme': 'AN',
-        'out_fpn_scheme': 'AN',
-    }
 
-    for arg, v in args2.__dict__.items():
-        args.__dict__[arg] = v
-
-    for arg, v in args_dict.items():
-        args.__dict__[arg] = v
-
-    CONFIG.update_config(args)
 
     # Change here to adapt to your data
     # n_channels=3 for RGB images
