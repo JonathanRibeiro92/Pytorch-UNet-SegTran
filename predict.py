@@ -10,11 +10,12 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from PIL import Image
 from torchvision import transforms
+from torch import optim
 
 from utils.data_loading import BasicDataset
 from unet import UNet
 from utils.utils import plot_img_and_mask
-from utils.dice_score import dice_loss
+from utils.dice_score import dice_loss, multiclass_dice_coeff, dice_coeff
 from utils.reproducibility import set_all_lib_seed, set_seed_worker
 
 from networks.segtran2d import Segtran2d, CONFIG
@@ -107,7 +108,7 @@ if __name__ == '__main__':
     dataloader_generator.manual_seed(SEED)
 
     dataset = BasicDataset(str(dir_img), str(dir_mask), args.scale)
-    num_workers = 4
+    num_workers = 2
     test_loader = DataLoader(
         dataset,
         shuffle=True,
@@ -128,40 +129,38 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    net = None
+    model = None
     CONFIG.device = 'cuda'
 
     if args.net == 'unet':
-        net = UNet(n_channels=args.channels, n_classes=args.classes,
+        model = UNet(n_channels=args.channels, n_classes=args.classes,
                      bilinear=args.bilinear)
     else:
         CONFIG.n_channels = args.channels
-        net = Segtran2d(CONFIG)
+        model = Segtran2d(CONFIG)
+
+    model = model.to(memory_format=torch.channels_last)
+    model.classes = args.classes
+    model.n_classes = args.classes
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')
     logging.info(f'Using device {device}')
 
-    net.to(device=device)
+    model.to(device=device)
     state_dict = torch.load(args.model, map_location=device)
     mask_values = state_dict.pop('mask_values', [0, 1])
-    net.load_state_dict(state_dict)
+    model.load_state_dict(state_dict)
 
     logging.info('Model loaded!')
 
     # 4. Set up the optimizer, the loss, the learning rate scheduler and the loss scaling for AMP
-    optimizer = optim.RMSprop(model.parameters(),
-                              lr=learning_rate, weight_decay=weight_decay,
-                              momentum=momentum, foreach=True)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max',
-                                                     patience=5)  # goal: maximize Dice score
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
-    criterion = nn.CrossEntropyLoss() if net.classes > 1 else \
+    criterion = nn.CrossEntropyLoss() if model.classes > 1 else \
         nn.BCEWithLogitsLoss()
     global_step = 0
     dice_score = 0
 
-    for batch in train_loader:
+    for batch in test_loader:
         images, true_masks = batch['image'], batch['mask']
 
         images = images.to(device=device, dtype=torch.float32,
@@ -169,8 +168,8 @@ if __name__ == '__main__':
         true_masks = true_masks.to(device=device, dtype=torch.long)
 
         with torch.autocast(device.type if device.type != 'mps' else 'cpu',
-                            enabled=amp):
-            masks_pred = net(images)
+                            enabled=args.amp):
+            masks_pred = model(images)
             if model.n_classes == 1:
                 loss = criterion(masks_pred.squeeze(1), true_masks.float())
                 loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
@@ -186,10 +185,12 @@ if __name__ == '__main__':
                                                                    2).float(),
                     multiclass=True
                 )
-                true_masks = F.one_hot(true_masks, net.n_classes).permute(0, 3, 1,
+                true_masks = F.one_hot(true_masks, model.n_classes).permute(0,
+                                                                         3, 1,
                                                                         2).float()
                 masks_pred = F.one_hot(masks_pred.argmax(dim=1),
-                                      net.n_classes).permute(0, 3, 1, 2).float()
+                                      model.n_classes).permute(0, 3, 1,
+                                                              2).float()
                 dice_score += multiclass_dice_coeff(masks_pred[:, 1:],
                                                     true_masks[:, 1:],
                                                     reduce_batch_first=False)
