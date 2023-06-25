@@ -1,11 +1,13 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from PIL import Image
 from torchvision import transforms
 
@@ -13,8 +15,11 @@ from utils.data_loading import BasicDataset
 from unet import UNet
 from utils.utils import plot_img_and_mask
 from utils.dice_score import dice_loss
+from utils.reproducibility import set_all_lib_seed, set_seed_worker
 
 from networks.segtran2d import Segtran2d, CONFIG
+from config.config_parser import configure_parse
+from config.settings import SEED
 
 dir_img = Path('./data/test/imgs')
 dir_mask = Path('./data/test/masks')
@@ -45,7 +50,7 @@ def get_args():
     parser = argparse.ArgumentParser(description='Predict masks from input images')
     parser.add_argument('--model', '-m', default='MODEL.pth', metavar='FILE',
                         help='Specify the file in which the model is stored')
-    parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images', required=True)
+    parser.add_argument('--input', '-i', metavar='INPUT', nargs='+', help='Filenames of input images')
     parser.add_argument('--output', '-o', metavar='OUTPUT', nargs='+', help='Filenames of output images')
     parser.add_argument('--viz', '-v', action='store_true',
                         help='Visualize the images as they are processed')
@@ -56,6 +61,14 @@ def get_args():
                         help='Scale factor for the input images')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
+    parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B',
+                        type=int, default=1, help='Batch size')
+    parser.add_argument('--net', type=str, default='segtran',
+                        help='Network architecture')
+    parser.add_argument('--channels', '-x', type=int, default=1,
+                        help='Number of channels image')
+    parser.add_argument("--gbias", dest='use_global_bias', action='store_true',
+                        help='Use the global bias instead of transformer layers.')
     
     return parser.parse_args()
 
@@ -88,11 +101,15 @@ if __name__ == '__main__':
     args = get_args()
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-    dataset = BasicDataset(str(dir_img), str(dir_mask), img_scale)
+    dataloader_generator = torch.Generator()
+    dataloader_generator.manual_seed(SEED)
+
+    dataset = BasicDataset(str(dir_img), str(dir_mask), args.scale)
+    num_workers = 4
     test_loader = DataLoader(
         dataset,
         shuffle=True,
-        batch_size=batch_size,
+        batch_size=args.batch_size,
         num_workers=num_workers,
         pin_memory=True,
         worker_init_fn=set_seed_worker,
@@ -102,6 +119,25 @@ if __name__ == '__main__':
 
     # in_files = args.input
     # out_files = get_output_filenames(args)
+
+    parser = argparse.ArgumentParser()
+    configure_parse(parser)
+    args2 = parser.parse_args()
+
+    args_dict = {
+        'trans_output_type': 'private',
+        'mid_type': 'shared',
+        'in_fpn_scheme': 'AN',
+        'out_fpn_scheme': 'AN',
+    }
+
+    for arg, v in args2.__dict__.items():
+        args.__dict__[arg] = v
+
+    for arg, v in args_dict.items():
+        args.__dict__[arg] = v
+
+    CONFIG.update_config(args)
 
     # Change here to adapt to your data
     # n_channels=3 for RGB images
