@@ -159,6 +159,7 @@ if __name__ == '__main__':
         nn.BCEWithLogitsLoss()
     global_step = 0
     dice_score = 0
+    num_val_batches = len(test_loader)
 
     for batch in test_loader:
         images, true_masks = batch['image'], batch['mask']
@@ -199,7 +200,7 @@ if __name__ == '__main__':
         #         result = mask_to_image(mask, mask_values)
         #         result.save(out_filename)
         #         logging.info(f'Mask saved to {out_filename}')
-
+    dice_score = dice_score / max(num_val_batches, 1)
     logging.info('Predict Dice score: {}'.format(dice_score))
 
 
