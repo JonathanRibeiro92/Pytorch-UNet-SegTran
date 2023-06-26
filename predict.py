@@ -201,6 +201,7 @@ if __name__ == '__main__':
         #         result.save(out_filename)
         #         logging.info(f'Mask saved to {out_filename}')
     dice_score = dice_score / max(num_val_batches, 1)
+    print('Dice Score: {}'.format(dice_score))
     logging.info('Predict Dice score: {}'.format(dice_score))
 
 
