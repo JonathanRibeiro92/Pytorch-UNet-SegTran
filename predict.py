@@ -163,7 +163,10 @@ if __name__ == '__main__':
     num_val_batches = len(test_loader)
 
     for batch in test_loader:
-        images, true_masks = batch['image'], batch['mask']
+        images, true_masks, names = batch['image'], batch['mask'], \
+                                       batch['name']
+
+        print('names: {}'.format(names))
 
         images = images.to(device=device, dtype=torch.float32,
                            memory_format=torch.channels_last)
@@ -172,7 +175,10 @@ if __name__ == '__main__':
         with torch.autocast(device.type if device.type != 'mps' else 'cpu',
                             enabled=args.amp):
             masks_pred = model(images)
-            print('masks_pred shape: {}'.format(masks_pred.shape))
+            # for mask in masks_pred:
+            #     result = mask_to_image(mask, mask_values)
+            #     result.save(out_filename)
+            #     logging.info(f'Mask saved to {out_filename}')
             if model.n_classes == 1:
                 loss = criterion(masks_pred.squeeze(1), true_masks.float())
                 loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
