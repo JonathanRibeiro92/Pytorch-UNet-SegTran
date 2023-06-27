@@ -166,8 +166,6 @@ if __name__ == '__main__':
         images, true_masks, names = batch['image'], batch['mask'], \
                                        batch['name']
 
-        print('names: {}'.format(names))
-
         images = images.to(device=device, dtype=torch.float32,
                            memory_format=torch.channels_last)
         true_masks = true_masks.to(device=device, dtype=torch.long)
@@ -175,10 +173,11 @@ if __name__ == '__main__':
         with torch.autocast(device.type if device.type != 'mps' else 'cpu',
                             enabled=args.amp):
             masks_pred = model(images)
-            # for mask in masks_pred:
-            #     result = mask_to_image(mask, mask_values)
-            #     result.save(out_filename)
-            #     logging.info(f'Mask saved to {out_filename}')
+            for mask, name in masks_pred, names:
+                out_filename = dir_masks_pred / name
+                result = mask_to_image(mask, mask_values)
+                result.save(out_filename)
+                logging.info(f'Mask saved to {out_filename}')
             if model.n_classes == 1:
                 loss = criterion(masks_pred.squeeze(1), true_masks.float())
                 loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
