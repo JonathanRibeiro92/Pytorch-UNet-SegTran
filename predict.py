@@ -25,6 +25,7 @@ from config.settings import SEED
 dir_img = Path('./data/test/imgs')
 dir_mask = Path('./data/test/masks')
 dir_checkpoint = Path('./checkpoints/')
+dir_masks_pred = Path('./data/pred/masks')
 
 def predict_img(net,
                 full_img,
@@ -171,6 +172,7 @@ if __name__ == '__main__':
         with torch.autocast(device.type if device.type != 'mps' else 'cpu',
                             enabled=args.amp):
             masks_pred = model(images)
+            print('masks_pred shape: {}'.format(masks_pred.shape))
             if model.n_classes == 1:
                 loss = criterion(masks_pred.squeeze(1), true_masks.float())
                 loss += dice_loss(F.sigmoid(masks_pred.squeeze(1)),
