@@ -173,7 +173,7 @@ if __name__ == '__main__':
         with torch.autocast(device.type if device.type != 'mps' else 'cpu',
                             enabled=args.amp):
             masks_pred = model(images)
-            for mask, name in masks_pred, names:
+            for mask, name in zip(masks_pred, names):
                 out_filename = dir_masks_pred / name
                 result = mask_to_image(mask, mask_values)
                 result.save(out_filename)
