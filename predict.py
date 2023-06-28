@@ -162,6 +162,9 @@ if __name__ == '__main__':
     dice_score = 0
     num_val_batches = len(test_loader)
 
+    dir_masks_pred = dir_masks_pred / args.net
+    os.mkdir(dir_masks_pred)
+
     for batch in test_loader:
         images, true_masks, names = batch['image'], batch['mask'], \
                                        batch['name']
