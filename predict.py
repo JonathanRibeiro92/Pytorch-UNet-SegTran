@@ -163,7 +163,7 @@ if __name__ == '__main__':
     num_val_batches = len(test_loader)
 
     dir_masks_pred = dir_masks_pred / args.net
-    os.mkdir(dir_masks_pred)
+    os.makedirs(dir_masks_pred, exist_ok=True)
 
     for batch in test_loader:
         images, true_masks, names = batch['image'], batch['mask'], \
