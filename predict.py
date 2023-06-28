@@ -175,7 +175,7 @@ if __name__ == '__main__':
             masks_pred = model(images)
             for mask, name in zip(masks_pred, names):
                 out_filename = dir_masks_pred / name
-                mask = mask.cpu().numpy()
+                mask = mask.detach().cpu().numpy()
                 result = mask_to_image(mask, mask_values)
                 result.save(out_filename)
                 logging.info(f'Mask saved to {out_filename}')
